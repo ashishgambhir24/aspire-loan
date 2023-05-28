@@ -1,0 +1,6 @@
+DEFAULT_PERIODICITY = "weekly"
+DEFAULT_INTEREST = 0.26
+DEFAULT_PROCESSING_FEE = 0.02
+
+# changing this require running migrations
+DEFAULT_DECIMAL_PLACES = 5
