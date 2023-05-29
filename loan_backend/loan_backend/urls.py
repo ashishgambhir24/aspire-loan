@@ -20,4 +20,6 @@ from loan_backend.settings import PATH_PREFIX
 
 urlpatterns = [
     path(PATH_PREFIX + 'admin/', admin.site.urls),
+    path(PATH_PREFIX + 'user/', include('user.urls')),
+    path(PATH_PREFIX + 'loan/', include('loan.urls')),
 ]

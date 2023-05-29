@@ -1,0 +1,10 @@
+version: '3'
+services:
+    django:
+        ports:
+            - "8000:8000" 
+        volumes:
+            - ./loan_backend:/code
+        build:
+            context: ./loan_backend
+            dockerfile: Dockerfile.django

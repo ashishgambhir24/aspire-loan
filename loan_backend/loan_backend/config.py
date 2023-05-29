@@ -14,6 +14,12 @@ class LoanStatus(Enum):
     SETTLED = 'loan settled'
     HOLD = 'hold'
 
+CLOSED_LOAN_STATUS = [
+    LoanStatus.COMPLETED.name,
+    LoanStatus.WRITTEN_OFF.name,
+    LoanStatus.SETTLED.name
+]
+
 class InstallmentStatus(Enum):
     UNPAID = 'unpaid'
     PARTIALLY_PAID = 'partially paid'
