@@ -1,0 +1,327 @@
+{
+	"info": {
+		"_postman_id": "09dd94d2-a5ce-4fd8-a12b-8a835abe02e0",
+		"name": "aspire-loan",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "26780057"
+	},
+	"item": [
+		{
+			"name": "user signin",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"username\": \"ashish\",\n    \"password\": \"test_pass_456\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://0.0.0.0:8000/aspire-loan/user/signin/",
+					"protocol": "http",
+					"host": [
+						"0",
+						"0",
+						"0",
+						"0"
+					],
+					"port": "8000",
+					"path": [
+						"aspire-loan",
+						"user",
+						"signin",
+						""
+					],
+					"query": [
+						{
+							"key": "username",
+							"value": "ashish",
+							"disabled": true
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "user login",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"username\": \"ashish\",\n    \"password\": \"test_pass_456\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://0.0.0.0:8000/aspire-loan/user/login/",
+					"protocol": "http",
+					"host": [
+						"0",
+						"0",
+						"0",
+						"0"
+					],
+					"port": "8000",
+					"path": [
+						"aspire-loan",
+						"user",
+						"login",
+						""
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "staff signin",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"username\": \"aspire-staff\",\n    \"password\": \"test_pass_456\",\n    \"is_staff\": true\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://0.0.0.0:8000/aspire-loan/user/signin/",
+					"protocol": "http",
+					"host": [
+						"0",
+						"0",
+						"0",
+						"0"
+					],
+					"port": "8000",
+					"path": [
+						"aspire-loan",
+						"user",
+						"signin",
+						""
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "superuser signin",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"username\": \"aspire-superuser\",\n    \"password\": \"AspireAdmin\",\n    \"is_superuser\": true\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://0.0.0.0:8000/aspire-loan/user/signin/",
+					"protocol": "http",
+					"host": [
+						"0",
+						"0",
+						"0",
+						"0"
+					],
+					"port": "8000",
+					"path": [
+						"aspire-loan",
+						"user",
+						"signin",
+						""
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "create loan",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNjg3OTA3OTcwLCJpYXQiOjE2ODUzMTU5NzAsImp0aSI6IjQ3YjA1YTQxOWRmNjQ0NGZiMTZhYmRmYWQxMmRkMWYwIiwidXNlcl9pZCI6NH0.STvAgHMIUbaWNl-SUGbdEq8RFKgk9y7bOsnRDV_gIRM",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNjg3OTAzMjQxLCJpYXQiOjE2ODUzMTEyNDEsImp0aSI6ImJjNDJkMzhlYTAzYTRiNmNhNDJhNDU4Y2JlNjMzODJhIiwidXNlcl9pZCI6Ik5vbmUifQ.3FxKfXtWRg4BU2ChFcx7b79-G9obirU-Q7P9T7HJOFk",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"amount\": 40,\n    \"tenure\": 9\n    // optional fields\n    // \"periodicity\": \"weekly\",\n    // \"interest\": 0,\n    // \"processing_fee\": 0\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://0.0.0.0:8000/aspire-loan/loan/loan/",
+					"protocol": "http",
+					"host": [
+						"0",
+						"0",
+						"0",
+						"0"
+					],
+					"port": "8000",
+					"path": [
+						"aspire-loan",
+						"loan",
+						"loan",
+						""
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "get user loans",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNjg3OTA1MzE5LCJpYXQiOjE2ODUzMTMzMTksImp0aSI6IjI2ZjAxOWRhZmJlOTQ4Zjk5YzdmMTA4YjRiMDdjNTg0IiwidXNlcl9pZCI6MX0.eTsp4J_f1YqjmdozZUMdEiKBoaTnea-oSCPbkWrrho0",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://0.0.0.0:8000/aspire-loan/loan/loan/",
+					"protocol": "http",
+					"host": [
+						"0",
+						"0",
+						"0",
+						"0"
+					],
+					"port": "8000",
+					"path": [
+						"aspire-loan",
+						"loan",
+						"loan",
+						""
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "approve loan",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNjg3OTA1MzE5LCJpYXQiOjE2ODUzMTMzMTksImp0aSI6IjI2ZjAxOWRhZmJlOTQ4Zjk5YzdmMTA4YjRiMDdjNTg0IiwidXNlcl9pZCI6MX0.eTsp4J_f1YqjmdozZUMdEiKBoaTnea-oSCPbkWrrho0",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "loan_id",
+							"value": "15",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "http://0.0.0.0:8000/aspire-loan/loan/approve/",
+					"protocol": "http",
+					"host": [
+						"0",
+						"0",
+						"0",
+						"0"
+					],
+					"port": "8000",
+					"path": [
+						"aspire-loan",
+						"loan",
+						"approve",
+						""
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "add loan payment",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNjg3OTA1MzE5LCJpYXQiOjE2ODUzMTMzMTksImp0aSI6IjI2ZjAxOWRhZmJlOTQ4Zjk5YzdmMTA4YjRiMDdjNTg0IiwidXNlcl9pZCI6MX0.eTsp4J_f1YqjmdozZUMdEiKBoaTnea-oSCPbkWrrho0",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"loan_id\":15,\n    \"amount\":10,\n    \"payment_id\":3\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://0.0.0.0:8000/aspire-loan/loan/add-payment/",
+					"protocol": "http",
+					"host": [
+						"0",
+						"0",
+						"0",
+						"0"
+					],
+					"port": "8000",
+					"path": [
+						"aspire-loan",
+						"loan",
+						"add-payment",
+						""
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
