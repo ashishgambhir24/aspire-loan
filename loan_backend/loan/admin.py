@@ -36,7 +36,7 @@ class LoanShareAdmin(admin.ModelAdmin):
 class InstallmentAdmin(admin.ModelAdmin):
     list_filter = ('status',)
     list_display = ('id', 'suggested_emi', 'loan_id', 'amount_remaining', 'status')
-    readonly_fields = ('amount_remaining',)
+    readonly_fields = ('amount_remaining', 'penalty_remaining')
 
     def loan_id(self, installment):
         return installment.loanshare.loan.id

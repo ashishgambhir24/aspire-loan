@@ -23,4 +23,5 @@ CLOSED_LOAN_STATUS = [
 class InstallmentStatus(Enum):
     UNPAID = 'unpaid'
     PARTIALLY_PAID = 'partially paid'
+    PAID_WITHOUT_PENALTY = 'paid without penalty'
     PAID = 'paid'

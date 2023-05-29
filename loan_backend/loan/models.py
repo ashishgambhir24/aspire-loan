@@ -8,7 +8,7 @@ from django.forms.models import model_to_dict
 from lib.common import add_months
 from lib.validators import validate_nonzero
 from loan_backend.config import Periodicity, LoanStatus, InstallmentStatus, CLOSED_LOAN_STATUS
-from loan_backend.constants import DEFAULT_PERIODICITY, DEFAULT_INTEREST, DEFAULT_PROCESSING_FEE, DEFAULT_DECIMAL_PLACES
+from loan_backend.constants import DEFAULT_PERIODICITY, DEFAULT_INTEREST, DEFAULT_PROCESSING_FEE, DEFAULT_DECIMAL_PLACES, DEFAULT_PENALTY_MULTIPLIER
 from loan import errors
 
 class Loan(models.Model):
@@ -204,16 +204,31 @@ class LoanShare(models.Model):
         with transaction.atomic():
             loan_repayment = LoanRepayment.create_loan_repayment(self, payment_id, payment_date, amount_paid)
 
+            # fulfill remaining installments and penalty
+            # order of fullfilment
+            #   1. fulfill unpaid/partially_paid installments in chronological order
+            #   2. fulfill penalties in chronological order
+
             # fulfill remaining installments in chronological order
             installments = Installment.objects.filter(
                 loanshare=self
             ).exclude(
-                status=InstallmentStatus.PAID.name
+                status__in=[InstallmentStatus.PAID.name, InstallmentStatus.PAID_WITHOUT_PENALTY.name]
             ).order_by('order')
 
             for i in installments:
                 if amount_paid > 0:
                     amount_paid = i.fulfill_loan_amount(amount_paid, loan_repayment)
+
+            if amount_paid > 0:
+                # fulfill penalties in chronological order
+                installments = Installment.objects.filter(
+                    loanshare=self,
+                    status=InstallmentStatus.PAID_WITHOUT_PENALTY.name,
+                ).order_by('order')
+                for i  in installments:
+                    if amount_paid > 0:
+                        amount_paid = i.fulfill_penalty(amount_paid, loan_repayment)
 
             if amount_paid > 0:
                 #if any amount still left that means we got extra money
@@ -224,7 +239,7 @@ class LoanShare(models.Model):
                 InstallmentDetail.get_or_create_installment_details(
                     last_ins,
                     loan_repayment,
-                    additional_amount=amount_paid
+                    additional_penalty=amount_paid
                 )
 
             self.update_loanshare_status()
@@ -240,6 +255,16 @@ class LoanShare(models.Model):
             self.loan.update_loan_status()
 
         return
+    
+    def total_paid(self):
+        loan_repayments = LoanRepayment.objects.filter(
+            loanshare=self
+        )
+        paid = 0
+        for lr in loan_repayments:
+            paid += lr.amount
+
+        return paid
 
     def __str__(self):
         return f"{str(self.loan.id)} : {str(self.id)} : {str(self.user.username)}"
@@ -254,6 +279,37 @@ class Installment(models.Model):
         choices=[(x.name, x.value) for x in InstallmentStatus],
         default = InstallmentStatus.UNPAID.name
     )
+
+    @property
+    def amount_remaining(self):
+        ins_details = InstallmentDetail.objects.filter(
+            installment=self
+        )
+        amount_paid = 0
+        for ins in ins_details:
+            amount_paid += ins.amount
+        return self.suggested_emi - amount_paid
+    
+    def installment_paid(self):
+        if self.status in [InstallmentStatus.PAID.name, InstallmentStatus.PAID_WITHOUT_PENALTY.name]:
+            return True
+
+        return False
+
+    @property
+    def penalty(self):
+        penalty = Penalty.objects.filter(installment=self).order_by('date').last()
+        return penalty.amount if penalty else 0
+    
+    @property
+    def penalty_remaining(self):
+        ins_details = InstallmentDetail.objects.filter(
+            installment=self
+        )
+        penalty_paid = 0
+        for ins in ins_details:
+            penalty_paid += ins.penalty
+        return self.penalty - penalty_paid
 
     def jsonify(self):
         data = model_to_dict(self, exclude=['id', 'order', 'loanshare'])
@@ -271,23 +327,8 @@ class Installment(models.Model):
         installment.full_clean()
         installment.save()
         return
-    
-    @property
-    def amount_remaining(self):
-        ins_details = InstallmentDetail.objects.filter(
-            installment=self
-        )
-        amount_paid = 0
-        for ins in ins_details:
-            amount_paid += ins.amount
-        return self.suggested_emi - amount_paid
-    
-    def installment_paid(self):
-        if self.status == InstallmentStatus.PAID.name:
-            return True
 
-        return False
-    
+    # To mark payment against installment suggested emi
     def fulfill_loan_amount(self, amount_paid, loan_repayment):
         amount_ddt = 0
         if self.installment_paid() or amount_paid <= 0:
@@ -306,14 +347,65 @@ class Installment(models.Model):
         )
         return amount_paid
     
-    def update_installment_status(self):
-        if self.amount_remaining > 0 and self.amount_remaining < self.suggested_emi:
+    # To mark payment against installment penalty
+    def fulfill_penalty(self, amount_paid, loan_repayment):
+        penalty_ddt = 0
+        if self.status != InstallmentStatus.PAID_WITHOUT_PENALTY.name or amount_paid <= 0:
+            return amount_paid
+
+        locked_ins = Installment.objects.select_for_update(of=('self',)).get(pk=self.pk)
+        penalty_remaining = locked_ins.penalty_remaining
+        if penalty_remaining > 0:
+            penalty_ddt = min(penalty_remaining, amount_paid)
+            amount_paid -= penalty_ddt
+
+        InstallmentDetail.get_or_create_installment_details(
+            locked_ins,
+            loan_repayment,
+            penalty_ddt=penalty_ddt
+        )
+        return amount_paid
+    
+    def update_installment_status(self, payment_date):
+        if self.amount_remaining >= self.suggested_emi:
+            self.status=InstallmentStatus.UNPAID.name
+        elif self.amount_remaining > 0 and self.amount_remaining < self.suggested_emi:
             self.status=InstallmentStatus.PARTIALLY_PAID.name
         elif self.amount_remaining == 0:
-            self.status=InstallmentStatus.PAID.name
+            if self.penalty_remaining > 0:
+                self.status=InstallmentStatus.PAID_WITHOUT_PENALTY.name
+            else:
+                self.status=InstallmentStatus.PAID.name
 
         self.full_clean()
         self.save()
+
+        if payment_date is not None:
+            Penalty.modify_penalty_after(self, payment_date)
+
+        return
+
+    # cronjob will call this method once everyday for every unpaid installment to create penalty if any
+    def update_penalty(self, final_date=None, penalty_multiplier=None):
+        if not final_date:
+            final_date = date.today()
+
+        if self.due_date >= final_date or self.installment_paid():
+            return
+
+        last_penalty = Penalty.objects.filter(installment=self).order_by('date').last()
+        if last_penalty:
+            last_penalty_date = last_penalty.date
+            last_penalty_amount = last_penalty.amount
+        else:
+            last_penalty_date = self.due_date
+            last_penalty_amount = 0
+
+        while last_penalty_date < final_date:
+            last_penalty_date += timedelta(days=1)
+            last_penalty_amount = Penalty.create_penalty(self, last_penalty_date, last_penalty_amount, penalty_multiplier)
+
+        return
     
 class LoanRepayment(models.Model):
     installments = models.ManyToManyField(Installment, through='InstallmentDetail')
@@ -338,6 +430,7 @@ class InstallmentDetail(models.Model):
     installment = models.ForeignKey(Installment, on_delete=models.CASCADE)
     loan_repayment = models.ForeignKey(LoanRepayment, on_delete=models.CASCADE)
     amount = models.DecimalField(max_digits=20, decimal_places=DEFAULT_DECIMAL_PLACES, default=0)
+    penalty = models.DecimalField(max_digits=20, decimal_places=DEFAULT_DECIMAL_PLACES, default=0)
     date_created = models.DateTimeField(auto_now_add=True)
 
     @classmethod
@@ -346,7 +439,8 @@ class InstallmentDetail(models.Model):
         installment,
         loan_repayment,
         amount_ddt=None,
-        additional_amount=None
+        penalty_ddt=None,
+        additional_penalty=None
     ):
         ins_detail, created = cls.objects.get_or_create(
             installment=installment,
@@ -354,10 +448,70 @@ class InstallmentDetail(models.Model):
         )
         if amount_ddt is not None:
             ins_detail.amount = amount_ddt
-        if additional_amount is not None:
-            ins_detail.amount = ins_detail.amount + additional_amount if ins_detail.amount else additional_amount
+        if penalty_ddt is not None:
+            ins_detail.penalty = penalty_ddt
+        if additional_penalty is not None:
+            ins_detail.penalty = ins_detail.penalty + additional_penalty if ins_detail.penalty else additional_penalty
 
         ins_detail.full_clean()
         ins_detail.save()
-        installment.update_installment_status()
+        installment.update_installment_status(loan_repayment.payment_date)
+        return
+
+class Penalty(models.Model):
+    installment = models.ForeignKey(Installment, on_delete=models.CASCADE)
+    date = models.DateField()
+    amount = models.DecimalField(max_digits=20, decimal_places=DEFAULT_DECIMAL_PLACES)
+
+    @classmethod
+    def create_penalty(cls, installment, penalty_date, last_penalty_amount, penalty_multiplier):
+        balance_remaining = installment.amount_remaining
+        penalty_amount = cls.compute_penalty(balance_remaining, penalty_multiplier)
+        if balance_remaining > 0 and penalty_amount > 0:
+            penalty = cls(
+                installment=installment,
+                date=penalty_date,
+                amount=last_penalty_amount + penalty_amount
+            )
+            penalty.full_clean()
+            penalty.save()
+            return penalty.amount
+        
+        return last_penalty_amount
+    
+    # new penalty amount added everyday as a percentage of amount remaining in an installment
+    @classmethod
+    def compute_penalty(cls, remaining_amount, multiplier):
+        if not multiplier:
+            multiplier = DEFAULT_PENALTY_MULTIPLIER
+
+        multiplier = Decimal(str(multiplier))
+        return Decimal(str(round(remaining_amount * multiplier, 5)))
+    
+    # to delete penalty objects created after payment date, for payments which were marked after their actual payment date
+    # and caused additional penalty
+    @classmethod
+    def modify_penalty_after(cls, installment, last_penalty_date):
+        successive_penalties = cls.objects.filter(installment=installment, date__gt=last_penalty_date).order_by('date')
+        if not successive_penalties:
+            return
+
+        balance_remaining = installment.amount_remaining
+        penalty_amount = cls.compute_penalty(balance_remaining, None)
+        if balance_remaining <= 0 or penalty_amount <= 0:
+            successive_penalties.delete()
+            return
+
+        try:
+            last_penalty = cls.objects.get(installment=installment, date=last_penalty_date)
+            last_penalty_amount = last_penalty.amount
+        except Penalty.DoesNotExist:
+            last_penalty_amount = 0
+
+        for penalty in successive_penalties:
+            last_penalty_amount += penalty_amount
+            penalty.amount = last_penalty_amount
+            penalty.full_clean()
+            penalty.save()
+
         return

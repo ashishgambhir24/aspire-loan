@@ -1,10 +1,10 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from django.contrib.auth.models import User
 from django.test import TestCase
 from loan_backend.config import LoanStatus, InstallmentStatus
 from loan import errors
-from loan.models import Loan, LoanShare, Installment, LoanRepayment
+from loan.models import Loan, LoanShare, Installment, Penalty
 
 class LoanTestCase(TestCase):
     def setUp(self):
@@ -17,6 +17,9 @@ class LoanTestCase(TestCase):
         }
         self.user = User.objects.create_user(username='dummy1', password='testpass')
         self.loan = Loan.create_loan(data, self.user)
+
+    def create_penalty(self, installment, period):
+        installment.update_penalty(final_date=installment.due_date + timedelta(days=period), penalty_multiplier=0.01)
 
     # Test create loan
     def test_create_loan(self):
@@ -78,12 +81,73 @@ class LoanTestCase(TestCase):
         installments = Installment.objects.filter(loanshare=loanshare).order_by('order')
         for i in range(self.loan.tenure):
             self.assertEqual(installments[i].status, InstallmentStatus.PAID.name)
-            
+            self.assertEqual(installments[i].amount_remaining, 0)
             if i == self.loan.tenure - 1:
                 # negative value represent extra amount paid
-                self.assertEqual(installments[i].amount_remaining, -100)
+                self.assertEqual(installments[i].penalty_remaining, -100)
             else:
-                self.assertEqual(installments[i].amount_remaining, 0)
+                self.assertEqual(installments[i].penalty_remaining, 0)
 
         loan = Loan.objects.get(pk=self.loan.pk)
         self.assertEqual(loan.status, LoanStatus.COMPLETED.name)
+
+    # Test case when payment is made with penalty
+    def test_add_payment_with_penalty(self):
+        approval_date = date.today()
+        self.loan.approve_loan(approval_date)
+        loanshare = LoanShare.objects.get(loan=self.loan, user=self.user)
+        installments = Installment.objects.filter(loanshare=loanshare).order_by('order')
+        penalty_days = 4
+        self.create_penalty(installments[0], penalty_days)
+        last_penalty = Penalty.objects.filter(installment=installments[0]).order_by('date').last()
+        last_penalty_amount = last_penalty.amount
+
+        # adding first payment late
+        loanshare.add_payment(installments[0].suggested_emi, 'PAYMENT3.0', installments[0].due_date + timedelta(days=penalty_days))
+        installments = Installment.objects.filter(loanshare=loanshare).order_by('order')
+        self.assertEqual(installments[0].amount_remaining, 0)
+        self.assertEqual(installments[0].penalty_remaining, last_penalty_amount)
+
+        for i in range(1, self.loan.tenure):
+            loanshare.add_payment(installments[i].suggested_emi, f'PAYMENT3.{i}', installments[i].due_date)
+
+        # adding further payments on time
+        installments = Installment.objects.filter(loanshare=loanshare).order_by('order')
+        for i in range(self.loan.tenure):
+            self.assertEqual(installments[i].amount_remaining, 0)
+            if i == 0:
+                self.assertEqual(installments[i].status, InstallmentStatus.PAID_WITHOUT_PENALTY.name)
+                self.assertEqual(installments[i].penalty_remaining, last_penalty_amount)
+            else:
+                self.assertEqual(installments[i].status, InstallmentStatus.PAID.name)
+                self.assertEqual(installments[i].penalty_remaining, 0)
+
+        loan = Loan.objects.get(pk=self.loan.pk)
+        self.assertEqual(loan.status, LoanStatus.APPROVED.name)
+
+        # paying penalty
+        loanshare.add_payment(last_penalty_amount, 'PAYMENT_PEN', installments.last().due_date)
+        self.assertEqual(installments[0].status, InstallmentStatus.PAID.name)
+        self.assertEqual(installments[0].penalty_remaining, 0)
+        self.assertEqual(loanshare.total_paid(), sum([i.suggested_emi for i in installments]) + last_penalty_amount)
+
+        loan = Loan.objects.get(pk=self.loan.pk)
+        self.assertEqual(loan.status, LoanStatus.COMPLETED.name)
+
+    # Test case when payment is marked on a later date with penalty
+    def test_post_facto_add_payment_with_penalty(self):
+        approval_date = date.today()
+        self.loan.approve_loan(approval_date)
+        loanshare = LoanShare.objects.get(loan=self.loan, user=self.user)
+        installments = Installment.objects.filter(loanshare=loanshare).order_by('order')
+        counted_penalty_days = 4
+        self.create_penalty(installments[0], counted_penalty_days)
+        actual_penalty_days = 2
+        payment_date = installments[0].due_date + timedelta(days=actual_penalty_days)
+        last_actual_penalty = Penalty.objects.get(installment=installments[0], date=payment_date)
+        last_actual_penalty_amount = last_actual_penalty.amount
+
+        loanshare.add_payment(installments[0].suggested_emi, 'PAYMENT4', payment_date)
+        installments = Installment.objects.filter(loanshare=loanshare).order_by('order')
+        self.assertEqual(installments[0].amount_remaining, 0)
+        self.assertEqual(installments[0].penalty_remaining, last_actual_penalty_amount)
