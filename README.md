@@ -5,6 +5,8 @@ For every terminal, first source bash_aliases file to use command line shortcuts
 
 > source .bash_aliases
 
+Make sure your docker desktop is running.
+
 After this first we need to turn on docker containers using command - 
 > dc up
 
