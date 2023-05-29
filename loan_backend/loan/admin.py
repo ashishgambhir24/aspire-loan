@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.safestring import mark_safe
 from django.urls import reverse
-from loan.models import Loan, LoanShare, Installment, InstallmentDetail, LoanRepayment
+from loan.models import Loan, LoanShare, Installment, InstallmentDetail, LoanRepayment, Penalty
 
 @admin.register(Loan)
 class LoanAdmin(admin.ModelAdmin):
@@ -48,4 +48,8 @@ class InstallmentDetailAdmin(admin.ModelAdmin):
 
 @admin.register(LoanRepayment)
 class LoanRepaymentAdmin(admin.ModelAdmin):
+    pass
+
+@admin.register(Penalty)
+class PenaltyAdmin(admin.ModelAdmin):
     pass
